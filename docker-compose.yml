@@ -1,0 +1,21 @@
+services:
+  qq-dof-bot:
+    restart: always
+    container_name: qq-dof-bot
+    image: registry.cn-shenzhen.aliyuncs.com/sliwei/qq-dof-bot:$TAG
+    environment:
+      - ENV=live
+      - MODE=production
+      - DATABASE=xx
+      - USERNAME=xx
+      - PASSWORD=xx
+      - HOST=xx
+      - PORT=xx
+      - APPID=xx
+      - TOKEN=xx
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

@@ -1,0 +1,63 @@
+name: deploy
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull
+        uses: actions/checkout@v3 # git pull
+
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=tag::$(date +'live-%Y%m%d%H%M%S')"
+
+      - name: Use Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '14'
+
+      - name: Cache Node Modules
+        uses: actions/cache@v2
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('yarn.lock') }}
+
+      - name: Install Packages
+        run: yarn
+
+      - name: Build
+        run: yarn build
+
+      - name: Build the Docker image
+        run: |
+          docker version
+          # 登录阿里云镜像仓库
+          docker login --username=wangxiaoshou666 --password=${{ secrets.DOCKER_PASSWORD }} registry.cn-shenzhen.aliyuncs.com
+          # 使用Dockerfile构建镜像
+          docker build . --file Dockerfile --tag registry.cn-shenzhen.aliyuncs.com/sliwei/qq-dof-bot:${{ steps.date.outputs.tag }}
+          # 推送镜像到镜像仓库
+          docker push registry.cn-shenzhen.aliyuncs.com/sliwei/qq-dof-bot:${{ steps.date.outputs.tag }}
+
+      - name: executing remote ssh commands using ssh key
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: bstu.cn
+          username: root
+          key: ${{ secrets.KEY }}
+          port: 22
+          script: |
+            mkdir -p /data/docker/awei/qq-dof-bot
+            cd /data/docker/awei/qq-dof-bot
+            # 登录阿里云镜像仓库
+            docker login --username=wangxiaoshou666 --password=${{ secrets.DOCKER_PASSWORD }} registry.cn-shenzhen.aliyuncs.com
+            docker pull registry.cn-shenzhen.aliyuncs.com/sliwei/qq-dof-bot:${{ steps.date.outputs.tag }}
+            export TAG=${{ steps.date.outputs.tag }}
+            echo $TAG
+            printf "${{ secrets.DOCKER_COMPOSE_YML }}" > docker-compose.yml
+            echo "$(date +'%Y-%m-%d %H:%M:%S'): $TAG" >> version.txt
+            docker compose up -d
