@@ -69,13 +69,14 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
   // /查询绑定
   // /绑定角色
   // /解除绑定
-  const command = data.msg.content.split(' ')[0]
-  const agrs1 = data.msg.content.split(' ')[1]
-  switch (command) {
+  const command = data.msg.content.replace(/^\s+|\s+$/g, '')
+  const cmd = command.split(' ')[0]
+  const agrs1 = command.split(' ')[1]
+  switch (cmd) {
     case '/帮助':
       await client.groupApi.postMessage(data.msg.group_id, {
         msg_type: 0,
-        content: '/帮助\n/签到\n/查询绑定\n/绑定角色 角色名\n/解除绑定(管理员)',
+        content: '\n/帮助\n/签到\n/查询绑定\n/绑定角色 角色名\n/解除绑定(管理员)',
         msg_id: data.msg.id,
         msg_seq: Math.round(Math.random() * (1 << 30))
       })
@@ -124,6 +125,15 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
       })
       break
     case '/绑定角色':
+      if (!agrs1) {
+        await client.groupApi.postMessage(data.msg.group_id, {
+          msg_type: 0,
+          content: '绑定角色失败，未输入角色名',
+          msg_id: data.msg.id,
+          msg_seq: Math.round(Math.random() * (1 << 30))
+        })
+        break
+      }
       await redisClient.connect()
       await redisClient.set(data.msg.author.id, agrs1)
       await redisClient.disconnect()
