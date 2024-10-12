@@ -4,6 +4,7 @@
  */
 import { createOpenAPI, createWebsocket, AvailableIntentsEventsEnum } from 'qq-bot-sdk' // es引用方法
 import conf from './config'
+import { redisClient } from './utils/redis'
 
 const testConfigWs = {
   appID: conf.appID,
@@ -62,6 +63,100 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
   console.log('[GROUP_AND_C2C_EVENT] 事件接收 :', data)
 
   // ===== 下方为发送消息接口，请按需取消注释 ======
+
+  // /帮助
+  // /签到
+  // /查询绑定
+  // /绑定角色
+  // /解除绑定
+  const command = data.msg.content.split(' ')[0]
+  const agrs1 = data.msg.content.split(' ')[1]
+  switch (command) {
+    case '/帮助':
+      await client.groupApi.postMessage(data.msg.group_id, {
+        msg_type: 0,
+        content: '/帮助\n/签到\n/查询绑定\n/绑定角色 角色名\n/解除绑定(管理员)',
+        msg_id: data.msg.id,
+        msg_seq: Math.round(Math.random() * (1 << 30))
+      })
+      break
+    case '/签到':
+      await redisClient.connect()
+      const value0 = await redisClient.get(data.msg.author.id)
+      if (!value0) {
+        await client.groupApi.postMessage(data.msg.group_id, {
+          msg_type: 0,
+          content: '签到失败，未绑定角色',
+          msg_id: data.msg.id,
+          msg_seq: Math.round(Math.random() * (1 << 30))
+        })
+      } else {
+        const key = `${data.msg.author.id}:${new Date().toLocaleDateString()}`
+        const value01 = await redisClient.get(key)
+        if (value01) {
+          await client.groupApi.postMessage(data.msg.group_id, {
+            msg_type: 0,
+            content: '签到失败，今日已签到',
+            msg_id: data.msg.id,
+            msg_seq: Math.round(Math.random() * (1 << 30))
+          })
+        } else {
+          await redisClient.set(key, '1')
+          await client.groupApi.postMessage(data.msg.group_id, {
+            msg_type: 0,
+            content: '签到成功',
+            msg_id: data.msg.id,
+            msg_seq: Math.round(Math.random() * (1 << 30))
+          })
+        }
+      }
+      await redisClient.disconnect()
+      break
+    case '/查询绑定':
+      await redisClient.connect()
+      const value = await redisClient.get(data.msg.author.id)
+      await redisClient.disconnect()
+      await client.groupApi.postMessage(data.msg.group_id, {
+        msg_type: 0,
+        content: `查询绑定成功，绑定角色为：${value}`,
+        msg_id: data.msg.id,
+        msg_seq: Math.round(Math.random() * (1 << 30))
+      })
+      break
+    case '/绑定角色':
+      await redisClient.connect()
+      await redisClient.set(data.msg.author.id, agrs1)
+      await redisClient.disconnect()
+      await client.groupApi.postMessage(data.msg.group_id, {
+        msg_type: 0,
+        content: `绑定角色成功，绑定角色为：${agrs1}`,
+        msg_id: data.msg.id,
+        msg_seq: Math.round(Math.random() * (1 << 30))
+      })
+      break
+    case '/解除绑定':
+      await redisClient.connect()
+      const value2 = await redisClient.get(data.msg.author.id)
+      if (!value2) {
+        await client.groupApi.postMessage(data.msg.group_id, {
+          msg_type: 0,
+          content: '解除绑定失败，未绑定角色',
+          msg_id: data.msg.id,
+          msg_seq: Math.round(Math.random() * (1 << 30))
+        })
+        break
+      } else {
+        await redisClient.del(data.msg.author.id)
+        await client.groupApi.postMessage(data.msg.group_id, {
+          msg_type: 0,
+          content: '解除绑定成功',
+          msg_id: data.msg.id,
+          msg_seq: Math.round(Math.random() * (1 << 30))
+        })
+      }
+      await redisClient.disconnect()
+      break
+  }
 
   // await client.c2cApi.postMessage(data.msg.author.id, {
   //     content: "测试文本",

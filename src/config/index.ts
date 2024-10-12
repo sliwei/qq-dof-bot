@@ -18,16 +18,16 @@ const config = {
     pass: process.env.MAIL_PASS || 'xxx' // 密码
   },
   db: {
-    database: process.env.DB_database || 'ylztsh-test',
-    username: process.env.DB_username || 'root',
-    password: process.env.DB_password || 'NkRMI8GmMm7WTzg',
-    host: process.env.DB_host || 'ylztsh.cn',
+    database: process.env.DB_database || 'xx',
+    username: process.env.DB_username || 'xx',
+    password: process.env.DB_password || 'xx',
+    host: process.env.DB_host || 'xx.cn',
     port: process.env.DB_port || '3306'
   },
-  redis: process.env.RD_url || 'redis://default:Z6MQEijkgEPLNdj@ylztsh.cn:6379/0',
+  redis: process.env.RD_url || 'redis://default:xx@xx.cn:6379/0',
   weapp: {
-    appid: 'wxae222910244f60a2',
-    secret: 'd55f01cc8613faa2e47186dc61f84c40'
+    appid: 'xx',
+    secret: 'xx'
   }
 }
 

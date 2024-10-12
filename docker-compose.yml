@@ -13,6 +13,7 @@ services:
       - PORT=xx
       - APPID=xx
       - TOKEN=xx
+      - RD_url=xx
     networks:
       - proxy
 
