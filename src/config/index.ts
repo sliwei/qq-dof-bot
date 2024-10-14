@@ -1,4 +1,5 @@
 import * as logs from '../utils/log4js'
+import 'dotenv/config'
 
 /**
  * 配置文件
@@ -18,11 +19,11 @@ const config = {
     pass: process.env.MAIL_PASS || 'xxx' // 密码
   },
   db: {
-    database: process.env.DB_database || 'xx',
-    username: process.env.DB_username || 'xx',
-    password: process.env.DB_password || 'xx',
-    host: process.env.DB_host || 'xx.cn',
-    port: process.env.DB_port || '3306'
+    database: process.env.DATABASE || 'xx',
+    username: process.env.USERNAME || 'xx',
+    password: process.env.PASSWORD || 'xx',
+    host: process.env.HOST || 'xx.cn',
+    port: process.env.PORT || '3306'
   },
   redis: process.env.RD_url || 'redis://default:xx@xx.cn:6379/0',
   weapp: {
