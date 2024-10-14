@@ -25,7 +25,7 @@ const executeAndFetch = async (database: string, sql: string, params?: any[]) =>
 const select = async (charac_info: string) => {
   const selectSql = `SELECT CONVERT (BINARY (CONVERT (charac_name USING latin1)) USING utf8) AS converted_charac_name,m_id,charac_no FROM charac_info WHERE charac_name=CONVERT (BINARY (CONVERT (? USING utf8)) USING latin1)`
   const result = await executeAndFetch('taiwan_cain', selectSql, [charac_info])
-  console.log(result)
+  return result
 }
 
 // 查询LetterId
