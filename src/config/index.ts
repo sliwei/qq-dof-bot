@@ -29,7 +29,8 @@ const config = {
   weapp: {
     appid: 'xx',
     secret: 'xx'
-  }
+  },
+  AIKEY: process.env.AIKEY || 'xx'
 }
 
 logs.info('ENV:', config.env)

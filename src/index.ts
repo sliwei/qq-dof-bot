@@ -6,6 +6,44 @@ import { createOpenAPI, createWebsocket, AvailableIntentsEventsEnum } from 'qq-b
 import conf from './config'
 import { redisClient } from './utils/redis'
 import { createConnection } from 'mysql2/promise'
+import OpenAI from 'openai'
+
+const OpenAIclient = new OpenAI({
+  apiKey: conf.AIKEY,
+  baseURL: 'https://free.gpt.ge/v1'
+})
+
+const askQuestion = async (question: string, id: string) => {
+  let conversationHistory = []
+  await redisClient.connect()
+  const value0 = await redisClient.get(`gpt:${id}`)
+  if (value0) {
+    conversationHistory = JSON.parse(value0)
+  }
+  conversationHistory.push({ role: 'user', content: question.slice(0, 300) })
+  const chatCompletion = await OpenAIclient.chat.completions.create({
+    messages: conversationHistory,
+    model: 'gpt-3.5-turbo'
+  })
+  const answer = chatCompletion.choices[0].message.content
+  conversationHistory.push({ role: 'assistant', content: answer.slice(0, 1000) })
+  await redisClient.set(`gpt:${id}`, JSON.stringify(conversationHistory.slice(length > 10 ? length - 10 : 0)))
+  await redisClient.disconnect()
+
+  // console.log('Assistant:', answer)
+  return answer
+}
+
+// async function main() {
+//   await askQuestion('你好，你是谁？')
+//   await askQuestion('你能做什么？')
+//   await askQuestion('你好，你是谁？')
+//   await askQuestion('你能做什么？')
+//   await askQuestion('西瓜有哪些品种?')
+//   // 继续提问...
+// }
+
+// main().catch(console.error)
 
 const executeAndCommit = async (database: string, sql: string, params: any[]) => {
   const connection = await createConnection({ host: conf.db.host, user: conf.db.username, password: conf.db.password, database: database })
@@ -156,14 +194,25 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
   const command = data.msg.content.replace(/^\s+|\s+$/g, '')
   const cmd = command.split(' ')[0]
   const agrs1 = command.split(' ')[1]
+  const agrs2 = command.split(' ')[2]
   switch (cmd) {
     case '/帮助':
-      await client.groupApi.postMessage(data.msg.group_id, {
-        msg_type: 0,
-        content: '\n/帮助\n/签到\n/查询绑定 角色名\n/绑定角色 角色名\n/解除绑定 角色名\n\n所有命令需要@机器人,绑定/查询/解除后面跟角色名,需要加空格,解除绑定@管理操作',
-        msg_id: data.msg.id,
-        msg_seq: Math.round(Math.random() * (1 << 30))
-      })
+      if (agrs1 === 'gpt' && agrs2) {
+        const res = await askQuestion(agrs2, data.msg.group_id)
+        await client.groupApi.postMessage(data.msg.group_id, {
+          msg_type: 0,
+          content: `\n${agrs1}\nGPT: ${res}`,
+          msg_id: data.msg.id,
+          msg_seq: Math.round(Math.random() * (1 << 30))
+        })
+      } else {
+        await client.groupApi.postMessage(data.msg.group_id, {
+          msg_type: 0,
+          content: '\n/帮助\n\n/帮助 gpt 问题\n/签到\n/查询绑定 角色名\n/绑定角色 角色名\n/解除绑定 角色名\n\n所有命令需要@机器人,绑定/查询/解除后面跟角色名,需要加空格,解除绑定@管理操作',
+          msg_id: data.msg.id,
+          msg_seq: Math.round(Math.random() * (1 << 30))
+        })
+      }
       break
     case '/签到':
       await redisClient.connect()
