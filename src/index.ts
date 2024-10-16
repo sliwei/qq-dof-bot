@@ -27,7 +27,7 @@ const askQuestion = async (question: string, id: string) => {
   })
   const answer = chatCompletion.choices[0].message.content
   conversationHistory.push({ role: 'assistant', content: answer.slice(0, 1000) })
-  await redisClient.set(`gpt:${id}`, JSON.stringify(conversationHistory.slice(length > 10 ? length - 10 : 0)))
+  await redisClient.set(`gpt:${id}`, JSON.stringify(conversationHistory.slice(conversationHistory.length > 10 ? conversationHistory.length - 10 : 0)))
   await redisClient.disconnect()
 
   // console.log('Assistant:', answer)
