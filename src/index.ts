@@ -13,7 +13,7 @@ const OpenAIclient = new OpenAI({
   baseURL: 'https://free.gpt.ge/v1'
 })
 
-const askQuestion = async (question: string, id: string) => {
+const askQuestion = async (model = 'gpt-4o-mini', question: string, id: string) => {
   let conversationHistory = []
   await redisClient.connect()
   const value0 = await redisClient.get(`gpt:${id}`)
@@ -23,7 +23,8 @@ const askQuestion = async (question: string, id: string) => {
   conversationHistory.push({ role: 'user', content: question.slice(0, 300) })
   const chatCompletion = await OpenAIclient.chat.completions.create({
     messages: conversationHistory,
-    model: 'gpt-3.5-turbo'
+    model
+    // model: 'gpt-3.5-turbo'
   })
   const answer = chatCompletion.choices[0].message.content
   conversationHistory.push({ role: 'assistant', content: answer.slice(0, 1000) })
@@ -197,18 +198,24 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
   const agrs2 = command.split(' ')[2]
   switch (cmd) {
     case '/帮助':
-      if (agrs1 === 'gpt' && agrs2) {
-        const res = await askQuestion(agrs2, data.msg.group_id)
+      if (agrs1.includes('gpt') && agrs2) {
+        const i = agrs1.split('gpt')[1] || '0'
+        const modelList = await redisClient.get('modelList')
+        const model = modelList[+i]
+        const res = await askQuestion(model, agrs2, data.msg.group_id)
         await client.groupApi.postMessage(data.msg.group_id, {
           msg_type: 0,
-          content: `\n${agrs1}\nGPT: ${res}`,
+          content: `${agrs2}\nGPT(${model}): ${res}`,
           msg_id: data.msg.id,
           msg_seq: Math.round(Math.random() * (1 << 30))
         })
       } else {
+        await redisClient.connect()
+        const help = await redisClient.get('help')
+        await redisClient.disconnect()
         await client.groupApi.postMessage(data.msg.group_id, {
           msg_type: 0,
-          content: '\n/帮助\n\n/帮助 gpt 问题\n/签到\n/查询绑定 角色名\n/绑定角色 角色名\n/解除绑定 角色名\n\n所有命令需要@机器人,绑定/查询/解除后面跟角色名,需要加空格,解除绑定@管理操作',
+          content: help,
           msg_id: data.msg.id,
           msg_seq: Math.round(Math.random() * (1 << 30))
         })
