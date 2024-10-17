@@ -134,7 +134,7 @@ const testConfigWs = {
   appID: conf.appID,
   token: conf.token,
   intents: [AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT],
-  sandbox: true
+  sandbox: conf.env === 'development'
 }
 
 const client = createOpenAPI(testConfigWs)
