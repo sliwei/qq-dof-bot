@@ -198,17 +198,27 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
   const agrs2 = command.split(' ')[2]
   switch (cmd) {
     case '/帮助':
-      if (agrs1.includes('gpt') && agrs2) {
+      if (agrs1 && agrs1.includes('gpt') && agrs2) {
         const i = agrs1.split('gpt')[1] || '0'
-        const modelList = await redisClient.get('modelList')
-        const model = modelList[+i]
-        const res = await askQuestion(model, agrs2, data.msg.group_id)
-        await client.groupApi.postMessage(data.msg.group_id, {
-          msg_type: 0,
-          content: `${agrs2}\nGPT(${model}): ${res}`,
-          msg_id: data.msg.id,
-          msg_seq: Math.round(Math.random() * (1 << 30))
-        })
+        const modelListStr = await redisClient.get('modelList')
+        const modelList = JSON.parse(modelListStr)
+        if (agrs2 === '查看模型') {
+          await client.groupApi.postMessage(data.msg.group_id, {
+            msg_type: 0,
+            content: modelList.join('\n'),
+            msg_id: data.msg.id,
+            msg_seq: Math.round(Math.random() * (1 << 30))
+          })
+        } else {
+          const model = modelList[+i]
+          const res = await askQuestion(model, agrs2, data.msg.group_id)
+          await client.groupApi.postMessage(data.msg.group_id, {
+            msg_type: 0,
+            content: `${agrs2}\nGPT(${model}): ${res}`,
+            msg_id: data.msg.id,
+            msg_seq: Math.round(Math.random() * (1 << 30))
+          })
+        }
       } else {
         await redisClient.connect()
         const help = await redisClient.get('help')
