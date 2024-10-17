@@ -6,7 +6,7 @@ import 'dotenv/config'
  */
 const config = {
   title: 'qq-dof-bot',
-  env: process.env.NODE_ENV || 'development', // development || production
+  env: process.env.MODE || 'development', // development || production
   port: 3000, // 端口
   appID: process.env.APPID || 'xxx',
   token: process.env.TOKEN || 'xxx',
