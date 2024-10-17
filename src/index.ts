@@ -15,7 +15,6 @@ const OpenAIclient = new OpenAI({
 
 const askQuestion = async (model = 'gpt-4o-mini', question: string, id: string) => {
   let conversationHistory = []
-  await redisClient.connect()
   const value0 = await redisClient.get(`gpt:${id}`)
   if (value0) {
     conversationHistory = JSON.parse(value0)
@@ -29,7 +28,6 @@ const askQuestion = async (model = 'gpt-4o-mini', question: string, id: string) 
   const answer = chatCompletion.choices[0].message.content
   conversationHistory.push({ role: 'assistant', content: answer.slice(0, 1000) })
   await redisClient.set(`gpt:${id}`, JSON.stringify(conversationHistory.slice(conversationHistory.length > 10 ? conversationHistory.length - 10 : 0)))
-  await redisClient.disconnect()
 
   // console.log('Assistant:', answer)
   return answer
@@ -198,6 +196,7 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
   const agrs2 = command.split(' ')[2]
   switch (cmd) {
     case '/帮助':
+      await redisClient.connect()
       if (agrs1 && agrs1.includes('gpt') && agrs2) {
         const i = agrs1.split('gpt')[1] || '0'
         const modelListStr = await redisClient.get('modelList')
@@ -220,9 +219,7 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
           })
         }
       } else {
-        await redisClient.connect()
         const help = await redisClient.get('help')
-        await redisClient.disconnect()
         await client.groupApi.postMessage(data.msg.group_id, {
           msg_type: 0,
           content: help,
@@ -230,6 +227,7 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
           msg_seq: Math.round(Math.random() * (1 << 30))
         })
       }
+      await redisClient.disconnect()
       break
     case '/签到':
       await redisClient.connect()
