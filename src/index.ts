@@ -202,7 +202,7 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
     const command = data.msg.content.replace(/^\s+|\s+$/g, '')
     const cmd = command.split(' ')[0]
     const agrs1 = command.split(' ')[1]
-    const agrs2 = command.split(' ')[2]
+    const agrs2 = command.split(' ').slice(2).join(' ')
     switch (cmd) {
       case '/帮助':
         await redisClient.connect()
@@ -309,6 +309,45 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
               msg_seq: Math.round(Math.random() * (1 << 30))
             })
             break
+          case '二次元':
+            const list2Str = await redisClient.get('list2')
+            // const list = ['https://cdn.seovx.com/?mom=302', 'https://cdn.seovx.com/d/?mom=302', 'https://cdn.seovx.com/ha/?mom=302', 'http://www.98qy.com/sjbz/api.php']
+            const list2 = JSON.parse(list2Str)
+            const fileRes = await client.groupApi.postFile(data.msg.group_id, {
+              file_type: 1, // 参数见上文
+              url: list2[Math.floor(Math.random() * list2.length)],
+              srv_send_msg: false // 设置为 false 不发送到目标端，仅拿到文件信息
+            }) // 拿到文件信息
+            await client.groupApi.postMessage(data.msg.group_id, {
+              msg_type: 7, // 发送富媒体
+              content: '二次元', // 当且仅当文件为图片时，才能实现图文混排，其余类型文件 content 会被忽略
+              media: { file_info: fileRes.data.file_info },
+              msg_id: data.msg.id
+            }) // 通过文件信息发送文件
+            break
+          case '三次元':
+            const list3Str = await redisClient.get('list3')
+            // const list3 = [
+            //   'https://api.lolimi.cn/API/meizi/api.php?type=image',
+            //   'https://api.asxe.vip/whitesilk.php',
+            //   'https://v2.api-m.com/api/meinvpic?return=302',
+            //   'https://v2.api-m.com/api/baisi?return=302',
+            //   'https://v2.api-m.com/api/heisi?return=302',
+            //   'https://img.moehu.org/pic.php?id=xjj'
+            // ]
+            const list3 = JSON.parse(list3Str)
+            const fileRes3 = await client.groupApi.postFile(data.msg.group_id, {
+              file_type: 1, // 参数见上文
+              url: list3[Math.floor(Math.random() * list3.length)],
+              srv_send_msg: false // 设置为 false 不发送到目标端，仅拿到文件信息
+            }) // 拿到文件信息
+            await client.groupApi.postMessage(data.msg.group_id, {
+              msg_type: 7, // 发送富媒体
+              content: '三次元', // 当且仅当文件为图片时，才能实现图文混排，其余类型文件 content 会被忽略
+              media: { file_info: fileRes3.data.file_info },
+              msg_id: data.msg.id
+            }) // 通过文件信息发送文件
+            break
           default:
             await helpFc()
             break
@@ -339,12 +378,23 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
             await redisClient.set(key, '1')
             const mailItemStr = await redisClient.get('mailItem')
             const mailItem = JSON.parse(mailItemStr)
+            // await client.groupApi.postMessage(data.msg.group_id, {
+            //   msg_type: 0,
+            //   content: `${value0} 签到成功，重新选择角色或者小退`,
+            //   msg_id: data.msg.id,
+            //   msg_seq: Math.round(Math.random() * (1 << 30))
+            // })
+            const fileRes = await client.groupApi.postFile(data.msg.group_id, {
+              file_type: 1, // 参数见上文
+              url: 'https://v2.api-m.com/api/heisi?return=302',
+              srv_send_msg: false // 设置为 false 不发送到目标端，仅拿到文件信息
+            }) // 拿到文件信息
             await client.groupApi.postMessage(data.msg.group_id, {
-              msg_type: 0,
-              content: `${value0} 签到成功，重新选择角色或者小退`,
-              msg_id: data.msg.id,
-              msg_seq: Math.round(Math.random() * (1 << 30))
-            })
+              msg_type: 7, // 发送富媒体
+              content: `${value0} 签到成功，邮件已发送，无邮件/空邮件重新选择角色或者小退`,
+              media: { file_info: fileRes.data.file_info },
+              msg_id: data.msg.id
+            }) // 通过文件信息发送文件
             const charac_no: string = await redisClient.get(data.msg.author.id + 'charac_no')
             const letter_id = await selectLetterId()
             for (const item of mailItem) {
@@ -476,7 +526,9 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
         break
     }
   } catch (error) {
-    console.log(error)
+    // ws.connect(testConfigWs, ws.session.sessionRecord)
+    redisClient.disconnect()
+    console.log('错误', error)
   }
   // await client.c2cApi.postMessage(data.msg.author.id, {
   //     content: "测试文本",
