@@ -19,15 +19,27 @@ const askQuestion = async (model = 'gpt-4o-mini', question: string, id: string) 
   if (value0) {
     conversationHistory = JSON.parse(value0)
   }
-  conversationHistory.push({ role: 'user', content: question.slice(0, 300) })
+  conversationHistory.push({ role: 'user', content: question })
+
   const chatCompletion = await OpenAIclient.chat.completions.create({
     messages: conversationHistory,
     model
     // model: 'gpt-3.5-turbo'
   })
   const answer = chatCompletion.choices[0].message.content
-  conversationHistory.push({ role: 'assistant', content: answer.slice(0, 1000) })
-  await redisClient.set(`gpt:${id}`, JSON.stringify(conversationHistory.slice(conversationHistory.length > 10 ? conversationHistory.length - 10 : 0)))
+  conversationHistory.push({ role: 'assistant', content: answer })
+
+  // Function to calculate total character length of the conversation history
+  const calculateTotalLength = (history: any[]) => {
+    return history.reduce((total, message) => total + message.content.length, 0)
+  }
+
+  // Ensure the total content length does not exceed 5000 characters
+  while (calculateTotalLength(conversationHistory) > 5000) {
+    conversationHistory.shift() // Remove the oldest message
+  }
+
+  await redisClient.set(`gpt:${id}`, JSON.stringify(conversationHistory))
   // console.log('Assistant:', answer)
   return answer
 }
@@ -320,7 +332,7 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
             }) // 拿到文件信息
             await client.groupApi.postMessage(data.msg.group_id, {
               msg_type: 7, // 发送富媒体
-              content: '二次元', // 当且仅当文件为图片时，才能实现图文混排，其余类型文件 content 会被忽略
+              // content: '二次元', // 当且仅当文件为图片时，才能实现图文混排，其余类型文件 content 会被忽略
               media: { file_info: fileRes.data.file_info },
               msg_id: data.msg.id
             }) // 通过文件信息发送文件
@@ -343,10 +355,48 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
             }) // 拿到文件信息
             await client.groupApi.postMessage(data.msg.group_id, {
               msg_type: 7, // 发送富媒体
-              content: '三次元', // 当且仅当文件为图片时，才能实现图文混排，其余类型文件 content 会被忽略
+              // content: '三次元', // 当且仅当文件为图片时，才能实现图文混排，其余类型文件 content 会被忽略
               media: { file_info: fileRes3.data.file_info },
               msg_id: data.msg.id
             }) // 通过文件信息发送文件
+            break
+          case '领福利':
+            const value0 = await redisClient.get(data.msg.author.id)
+            if (!value0) {
+              await client.groupApi.postMessage(data.msg.group_id, {
+                msg_type: 0,
+                content: `${value0} 签到失败，未绑定角色`,
+                msg_id: data.msg.id,
+                msg_seq: Math.round(Math.random() * (1 << 30))
+              })
+            } else {
+              const key = `gift:${data.msg.author.id}`
+              const value01 = await redisClient.get(key)
+              if (value01) {
+                await client.groupApi.postMessage(data.msg.group_id, {
+                  msg_type: 0,
+                  content: `${value0} 领取失败，每人只能领取一次福利`,
+                  msg_id: data.msg.id,
+                  msg_seq: Math.round(Math.random() * (1 << 30))
+                })
+              } else {
+                await redisClient.set(key, '1')
+                const mailItemStr = await redisClient.get('giftItem')
+                const mailItem = JSON.parse(mailItemStr)
+                await client.groupApi.postMessage(data.msg.group_id, {
+                  msg_type: 0,
+                  content: `${value0} 福利邮件已发送，无邮件/空邮件重新选择角色或者小退`,
+                  msg_id: data.msg.id,
+                  msg_seq: Math.round(Math.random() * (1 << 30))
+                })
+                const charac_no: string = await redisClient.get(data.msg.author.id + 'charac_no')
+                const letter_id = await selectLetterId()
+                for (const item of mailItem) {
+                  await sendMail('便捷小虞福利', letter_id, +charac_no, item[0], item[1], 1)
+                }
+                console.log(`${value0} ${charac_no} 邮件发送成功`)
+              }
+            }
             break
           default:
             await helpFc()
@@ -378,23 +428,12 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
             await redisClient.set(key, '1')
             const mailItemStr = await redisClient.get('mailItem')
             const mailItem = JSON.parse(mailItemStr)
-            // await client.groupApi.postMessage(data.msg.group_id, {
-            //   msg_type: 0,
-            //   content: `${value0} 签到成功，重新选择角色或者小退`,
-            //   msg_id: data.msg.id,
-            //   msg_seq: Math.round(Math.random() * (1 << 30))
-            // })
-            const fileRes = await client.groupApi.postFile(data.msg.group_id, {
-              file_type: 1, // 参数见上文
-              url: 'https://v2.api-m.com/api/heisi?return=302',
-              srv_send_msg: false // 设置为 false 不发送到目标端，仅拿到文件信息
-            }) // 拿到文件信息
             await client.groupApi.postMessage(data.msg.group_id, {
-              msg_type: 7, // 发送富媒体
+              msg_type: 0,
               content: `${value0} 签到成功，邮件已发送，无邮件/空邮件重新选择角色或者小退`,
-              media: { file_info: fileRes.data.file_info },
-              msg_id: data.msg.id
-            }) // 通过文件信息发送文件
+              msg_id: data.msg.id,
+              msg_seq: Math.round(Math.random() * (1 << 30))
+            })
             const charac_no: string = await redisClient.get(data.msg.author.id + 'charac_no')
             const letter_id = await selectLetterId()
             for (const item of mailItem) {
@@ -529,6 +568,12 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
     // ws.connect(testConfigWs, ws.session.sessionRecord)
     redisClient.disconnect()
     console.log('错误', error)
+    await client.groupApi.postMessage(data.msg.group_id, {
+      msg_type: 0,
+      content: `哎呀，出错了，${error.message}`,
+      msg_id: data.msg.id,
+      msg_seq: Math.round(Math.random() * (1 << 30))
+    })
   }
   // await client.c2cApi.postMessage(data.msg.author.id, {
   //     content: "测试文本",
