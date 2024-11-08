@@ -10,7 +10,7 @@ import OpenAI from 'openai'
 
 const OpenAIclient = new OpenAI({
   apiKey: conf.AIKEY,
-  baseURL: 'https://free.gpt.ge/v1'
+  baseURL: 'https://free.v36.cm/v1'
 })
 
 const askQuestion = async (model = 'gpt-4o-mini', question: string, id: string) => {
