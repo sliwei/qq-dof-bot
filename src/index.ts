@@ -13,6 +13,16 @@ const OpenAIclient = new OpenAI({
   baseURL: 'https://free.v36.cm/v1'
 })
 
+// 删除指定列表下所有键的函数
+const deleteKeys = async (pattern: string) => {
+  // 查找所有与模式匹配的键
+  const keys = await redisClient.keys(pattern)
+  for (const key of keys) {
+    // 删除键
+    await redisClient.del(key)
+  }
+}
+
 const askQuestion = async (model = 'gpt-4o-mini', question: string, id: string) => {
   let conversationHistory = []
   const value0 = await redisClient.get(`gpt:${id}`)
@@ -203,6 +213,17 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
   group_id: ${data.msg.group_id}
   content: ${data.msg.content}
   `)
+  const qqid = data.msg.author.id
+  const qun_id = data.msg.group_id
+
+  const postMessage = async (content: string) => {
+    await client.groupApi.postMessage(qun_id, {
+      msg_type: 0,
+      content,
+      msg_id: data.msg.id,
+      msg_seq: Math.round(Math.random() * (1 << 30))
+    })
+  }
 
   try {
     // ===== 下方为发送消息接口，请按需取消注释 ======
@@ -215,17 +236,14 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
     const cmd = command.split(' ')[0]
     const agrs1 = command.split(' ')[1]
     const agrs2 = command.split(' ').slice(2).join(' ')
+    const gameName = agrs1
+    let RD_gameName = ''
     switch (cmd) {
       case '/帮助':
         await redisClient.connect()
         const helpFc = async () => {
           const help = await redisClient.get('help')
-          await client.groupApi.postMessage(data.msg.group_id, {
-            msg_type: 0,
-            content: help,
-            msg_id: data.msg.id,
-            msg_seq: Math.round(Math.random() * (1 << 30))
-          })
+          await postMessage(help)
         }
         switch (agrs1) {
           case 'gpt':
@@ -239,28 +257,20 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
           case 'gpt7':
             if (agrs2) {
               const i = agrs1.split('gpt')[1] || '0'
+              // 模型列表
               const modelListStr = await redisClient.get('modelList')
               const modelList = JSON.parse(modelListStr)
               const model = modelList[+i]
-              const res = await askQuestion(model, agrs2, data.msg.group_id)
-              await client.groupApi.postMessage(data.msg.group_id, {
-                msg_type: 0,
-                content: `${agrs2}\nGPT(${model}): ${res}`,
-                msg_id: data.msg.id,
-                msg_seq: Math.round(Math.random() * (1 << 30))
-              })
+              const res = await askQuestion(model, agrs2, qun_id)
+              await postMessage(`${agrs2}\nGPT(${model}): ${res}`)
             } else {
               await helpFc()
             }
             break
           case '查看模型':
+            // 模型说明
             const modelListStr = await redisClient.get('modelInfo')
-            await client.groupApi.postMessage(data.msg.group_id, {
-              msg_type: 0,
-              content: modelListStr,
-              msg_id: data.msg.id,
-              msg_seq: Math.round(Math.random() * (1 << 30))
-            })
+            await postMessage(modelListStr)
             break
           case '战力排行':
             const result: any = await executeAndFetch('d_starsky', 'select * from zhanli ORDER BY ZLZ desc LIMIT 10')
@@ -303,34 +313,24 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
                   .join('\n')
               )
             }
-
-            await client.groupApi.postMessage(data.msg.group_id, {
-              msg_type: 0,
-              content: formatData(result),
-              msg_id: data.msg.id,
-              msg_seq: Math.round(Math.random() * (1 << 30))
-            })
+            await postMessage(formatData(result))
             break
           case '在线人数':
             const result1: any = await executeAndFetch('taiwan_login', 'SELECT COUNT(*) as num FROM login_account_3 WHERE login_status=1')
             console.log(result1)
-            await client.groupApi.postMessage(data.msg.group_id, {
-              msg_type: 0,
-              content: `现在游戏有 ${result1[0].num} 个老登在线~`,
-              msg_id: data.msg.id,
-              msg_seq: Math.round(Math.random() * (1 << 30))
-            })
+            await postMessage(`现在游戏有 ${result1[0].num} 个老登在线~`)
             break
           case '二次元':
+            // 二次元列表
             const list2Str = await redisClient.get('list2')
             // const list = ['https://cdn.seovx.com/?mom=302', 'https://cdn.seovx.com/d/?mom=302', 'https://cdn.seovx.com/ha/?mom=302', 'http://www.98qy.com/sjbz/api.php']
             const list2 = JSON.parse(list2Str)
-            const fileRes = await client.groupApi.postFile(data.msg.group_id, {
+            const fileRes = await client.groupApi.postFile(qun_id, {
               file_type: 1, // 参数见上文
               url: list2[Math.floor(Math.random() * list2.length)],
               srv_send_msg: false // 设置为 false 不发送到目标端，仅拿到文件信息
             }) // 拿到文件信息
-            await client.groupApi.postMessage(data.msg.group_id, {
+            await client.groupApi.postMessage(qun_id, {
               msg_type: 7, // 发送富媒体
               // content: '二次元', // 当且仅当文件为图片时，才能实现图文混排，其余类型文件 content 会被忽略
               media: { file_info: fileRes.data.file_info },
@@ -338,6 +338,7 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
             }) // 通过文件信息发送文件
             break
           case '三次元':
+            // 三次元列表
             const list3Str = await redisClient.get('list3')
             // const list3 = [
             //   'https://api.lolimi.cn/API/meizi/api.php?type=image',
@@ -348,12 +349,12 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
             //   'https://img.moehu.org/pic.php?id=xjj'
             // ]
             const list3 = JSON.parse(list3Str)
-            const fileRes3 = await client.groupApi.postFile(data.msg.group_id, {
+            const fileRes3 = await client.groupApi.postFile(qun_id, {
               file_type: 1, // 参数见上文
               url: list3[Math.floor(Math.random() * list3.length)],
               srv_send_msg: false // 设置为 false 不发送到目标端，仅拿到文件信息
             }) // 拿到文件信息
-            await client.groupApi.postMessage(data.msg.group_id, {
+            await client.groupApi.postMessage(qun_id, {
               msg_type: 7, // 发送富媒体
               // content: '三次元', // 当且仅当文件为图片时，才能实现图文混排，其余类型文件 content 会被忽略
               media: { file_info: fileRes3.data.file_info },
@@ -361,42 +362,61 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
             }) // 通过文件信息发送文件
             break
           case '领福利':
-            const value0 = await redisClient.get(data.msg.author.id)
-            if (!value0) {
-              await client.groupApi.postMessage(data.msg.group_id, {
-                msg_type: 0,
-                content: `${value0} 签到失败，未绑定角色`,
-                msg_id: data.msg.id,
-                msg_seq: Math.round(Math.random() * (1 << 30))
-              })
+            // 根据QQID查询绑定角色
+            RD_gameName = await redisClient.get('bind:' + qqid)
+            if (!RD_gameName) {
+              await postMessage(`${RD_gameName} 签到失败，未绑定角色`)
             } else {
-              const key = `gift:${data.msg.author.id}`
-              const value01 = await redisClient.get(key)
-              if (value01) {
-                await client.groupApi.postMessage(data.msg.group_id, {
-                  msg_type: 0,
-                  content: `${value0} 领取失败，每人只能领取一次福利`,
-                  msg_id: data.msg.id,
-                  msg_seq: Math.round(Math.random() * (1 << 30))
-                })
+              // 福利领取情况
+              const key = `gift:${qqid}`
+              const RD_fuli = await redisClient.get(key)
+              if (RD_fuli) {
+                await postMessage(`${RD_gameName} 领取失败，每人只能领取一次福利`)
               } else {
                 await redisClient.set(key, '1')
-                const mailItemStr = await redisClient.get('giftItem')
-                const mailItem = JSON.parse(mailItemStr)
-                await client.groupApi.postMessage(data.msg.group_id, {
-                  msg_type: 0,
-                  content: `${value0} 福利邮件已发送，无邮件/空邮件重新选择角色或者小退`,
-                  msg_id: data.msg.id,
-                  msg_seq: Math.round(Math.random() * (1 << 30))
-                })
-                const charac_no: string = await redisClient.get(data.msg.author.id + 'charac_no')
+                // 福利物品配置
+                const giftItemStr = await redisClient.get('giftItem')
+                const giftItem = JSON.parse(giftItemStr)
+                await postMessage(`${RD_gameName} 福利邮件已发送，无邮件/空邮件重新选择角色或者小退`)
+                const charac_no: string = await redisClient.get('bind:' + qqid + 'charac_no')
                 const letter_id = await selectLetterId()
-                for (const item of mailItem) {
+                for (const item of giftItem) {
                   await sendMail('便捷小虞福利', letter_id, +charac_no, item[0], item[1], 1)
                 }
-                console.log(`${value0} ${charac_no} 邮件发送成功`)
+                console.log(`${RD_gameName} ${charac_no} 邮件发送成功`)
               }
             }
+            break
+          case 'set_gift':
+            // 福利物品配置
+            if (agrs2) {
+              await redisClient.set('giftItem', agrs2)
+              await postMessage(`set_gift success ${agrs2}`)
+            } else {
+              await postMessage(`格式: /帮助 set_gift [[物品代码,数量],[物品代码,数量]]`)
+            }
+            break
+          case 'set_sign':
+            // 签到物品配置
+            if (agrs2) {
+              await redisClient.set('signItem', agrs2)
+              await postMessage(`set_sign success ${agrs2}`)
+            } else {
+              await postMessage(`格式: /帮助 set_sign [[物品代码,数量],[物品代码,数量]]`)
+            }
+            break
+          case 'clear_gift':
+            await deleteKeys('gift:*')
+            await postMessage(`clear_gift success`)
+            break
+          case 'clear_sign':
+            await deleteKeys('sign:*')
+            await postMessage(`clear_sign success`)
+            break
+          case 'clear_sign_day':
+            const key = `sign:${new Date().toLocaleDateString()}:*`
+            await deleteKeys(key)
+            await postMessage(`${key} success`)
             break
           default:
             await helpFc()
@@ -406,87 +426,58 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
         break
       case '/签到':
         await redisClient.connect()
-        const value0 = await redisClient.get(data.msg.author.id)
-        if (!value0) {
-          await client.groupApi.postMessage(data.msg.group_id, {
-            msg_type: 0,
-            content: `${value0} 签到失败，未绑定角色`,
-            msg_id: data.msg.id,
-            msg_seq: Math.round(Math.random() * (1 << 30))
-          })
+        RD_gameName = await redisClient.get('bind:' + qqid)
+        if (!RD_gameName) {
+          await postMessage(`${RD_gameName} 签到失败，未绑定角色`)
         } else {
-          const key = `${data.msg.author.id}:${new Date().toLocaleDateString()}`
-          const value01 = await redisClient.get(key)
-          if (value01) {
-            await client.groupApi.postMessage(data.msg.group_id, {
-              msg_type: 0,
-              content: `${value0} 签到失败，今日已签到`,
-              msg_id: data.msg.id,
-              msg_seq: Math.round(Math.random() * (1 << 30))
-            })
+          // 获取今天签到情况
+          const key = `sign:${new Date().toLocaleDateString()}:${qqid}`
+          const RD_sign = await redisClient.get(key)
+          if (RD_sign) {
+            await postMessage(`${RD_gameName} 签到失败，今日已签到`)
           } else {
             await redisClient.set(key, '1')
-            const mailItemStr = await redisClient.get('mailItem')
-            const mailItem = JSON.parse(mailItemStr)
-            await client.groupApi.postMessage(data.msg.group_id, {
-              msg_type: 0,
-              content: `${value0} 签到成功，邮件已发送，无邮件/空邮件重新选择角色或者小退`,
-              msg_id: data.msg.id,
-              msg_seq: Math.round(Math.random() * (1 << 30))
-            })
-            const charac_no: string = await redisClient.get(data.msg.author.id + 'charac_no')
-            const letter_id = await selectLetterId()
-            for (const item of mailItem) {
-              await sendMail('便捷小虞', letter_id, +charac_no, item[0], item[1], 1)
+            // 签到物品配置
+            const signItemStr = await redisClient.get('signItem')
+            const signItem = JSON.parse(signItemStr)
+            if (signItem.length) {
+              await postMessage(`${RD_gameName} 签到成功，邮件已发送，无邮件/空邮件重新选择角色或者小退`)
+              const charac_no: string = await redisClient.get('bind:' + qqid + 'charac_no')
+              const letter_id = await selectLetterId()
+              for (const item of signItem) {
+                await sendMail('便捷小虞', letter_id, +charac_no, item[0], item[1], 1)
+              }
+              console.log(`${RD_gameName} ${charac_no} 邮件发送成功`)
+            } else {
+              await postMessage(`还未开启签到哦~`)
             }
-            console.log(`${value0} ${charac_no} 邮件发送成功`)
           }
         }
         await redisClient.disconnect()
         break
       case '/查询绑定':
         await redisClient.connect()
-        if (agrs1) {
-          const value3 = await redisClient.get(agrs1)
-          if (value3) {
-            await client.groupApi.postMessage(data.msg.group_id, {
-              msg_type: 0,
-              content: `查询成功，角色：${agrs1} 已被绑定`,
-              msg_id: data.msg.id,
-              msg_seq: Math.round(Math.random() * (1 << 30))
-            })
+        if (gameName) {
+          const RD_qqid = await redisClient.get('bind:' + gameName)
+          if (RD_qqid) {
+            await postMessage(`查询成功，角色：${gameName} 已被绑定`)
           } else {
-            await client.groupApi.postMessage(data.msg.group_id, {
-              msg_type: 0,
-              content: `查询成功，角色：${agrs1} 未被绑定`,
-              msg_id: data.msg.id,
-              msg_seq: Math.round(Math.random() * (1 << 30))
-            })
+            await postMessage(`查询成功，角色：${gameName} 未被绑定`)
           }
         } else {
-          const value = await redisClient.get(data.msg.author.id)
-          const charac_no = await redisClient.get(data.msg.author.id + 'charac_no')
+          const value = await redisClient.get('bind:' + qqid)
+          const charac_no = await redisClient.get('bind:' + qqid + 'charac_no')
           if (value) {
-            await client.groupApi.postMessage(data.msg.group_id, {
-              msg_type: 0,
-              content: `查询成功，你绑定的角色为：${value} ${charac_no}`,
-              msg_id: data.msg.id,
-              msg_seq: Math.round(Math.random() * (1 << 30))
-            })
+            await postMessage(`查询成功，你绑定的角色为：${value} ID:${charac_no}`)
           } else {
-            await client.groupApi.postMessage(data.msg.group_id, {
-              msg_type: 0,
-              content: '你还未绑定角色',
-              msg_id: data.msg.id,
-              msg_seq: Math.round(Math.random() * (1 << 30))
-            })
+            await postMessage('你还未绑定角色色')
           }
         }
         await redisClient.disconnect()
         break
       case '/绑定角色':
-        if (!agrs1) {
-          await client.groupApi.postMessage(data.msg.group_id, {
+        if (!gameName) {
+          await client.groupApi.postMessage(qun_id, {
             msg_type: 0,
             content: '绑定角色失败，未输入角色名，仔细阅读帮助',
             msg_id: data.msg.id,
@@ -494,71 +485,42 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
           })
           break
         }
-        const user: any = await select(agrs1)
+        // 数据库查询角色
+        const user: any = await select(gameName)
         if (user.length === 0) {
-          await client.groupApi.postMessage(data.msg.group_id, {
-            msg_type: 0,
-            content: `绑定角色失败，角色：${agrs1} 不存在`,
-            msg_id: data.msg.id,
-            msg_seq: Math.round(Math.random() * (1 << 30))
-          })
+          await postMessage(`绑定角色失败，游戏角色：${gameName} 不存在`)
           break
         }
         const userinfo = user[0]
         await redisClient.connect()
-        const value4 = await redisClient.get(data.msg.author.id)
-        if (value4) {
-          await client.groupApi.postMessage(data.msg.group_id, {
-            msg_type: 0,
-            content: `绑定角色失败，你已绑定角色：${value4} ${userinfo.charac_no}`,
-            msg_id: data.msg.id,
-            msg_seq: Math.round(Math.random() * (1 << 30))
-          })
+        RD_gameName = await redisClient.get('bind:' + qqid)
+        if (RD_gameName) {
+          await postMessage(`绑定角色失败，你已绑定角色：${RD_gameName} ID:${userinfo.charac_no}`)
         } else {
-          await redisClient.set(data.msg.author.id, agrs1)
-          await redisClient.set(data.msg.author.id + 'charac_no', userinfo.charac_no)
-          await redisClient.set(agrs1, data.msg.author.id)
-          await redisClient.set(agrs1 + 'charac_no', userinfo.charac_no)
+          await redisClient.set('bind:' + qqid, gameName)
+          await redisClient.set('bind:' + qqid + 'charac_no', userinfo.charac_no)
+          await redisClient.set('bind:' + gameName, qqid)
+          await redisClient.set('bind:' + gameName + 'charac_no', userinfo.charac_no)
           await redisClient.disconnect()
-          await client.groupApi.postMessage(data.msg.group_id, {
-            msg_type: 0,
-            content: `绑定角色成功，绑定角色为：${agrs1} ${userinfo.charac_no}`,
-            msg_id: data.msg.id,
-            msg_seq: Math.round(Math.random() * (1 << 30))
-          })
+          await postMessage(`绑定角色成功，绑定角色为：${gameName} ID:${userinfo.charac_no}`)
         }
         await redisClient.disconnect()
         break
       case '/解除绑定':
-        if (!agrs1) {
-          await client.groupApi.postMessage(data.msg.group_id, {
-            msg_type: 0,
-            content: '解除绑定失败，未输入角色名',
-            msg_id: data.msg.id,
-            msg_seq: Math.round(Math.random() * (1 << 30))
-          })
+        if (!gameName) {
+          await postMessage('解除绑定失败，未输入角色名')
         } else {
           await redisClient.connect()
-          const value2 = await redisClient.get(agrs1)
-          if (!value2) {
-            await client.groupApi.postMessage(data.msg.group_id, {
-              msg_type: 0,
-              content: `解除绑定失败，角色：${agrs1} 未被绑定`,
-              msg_id: data.msg.id,
-              msg_seq: Math.round(Math.random() * (1 << 30))
-            })
+          const RD_qqid = await redisClient.get('bind:' + gameName)
+          if (!RD_qqid) {
+            await postMessage(`解除绑定失败，角色：${gameName} 未被绑定`)
           } else {
-            const value5 = await redisClient.get(agrs1)
-            await redisClient.del(value5)
-            await redisClient.del(agrs1)
-            await redisClient.del(value5 + 'charac_no')
-            await redisClient.del(agrs1 + 'charac_no')
-            await client.groupApi.postMessage(data.msg.group_id, {
-              msg_type: 0,
-              content: `解除绑定成功，角色为：${agrs1}`,
-              msg_id: data.msg.id,
-              msg_seq: Math.round(Math.random() * (1 << 30))
-            })
+            const qqid = await redisClient.get('bind:' + gameName)
+            await redisClient.del('bind:' + qqid) // QQID 存的 角色
+            await redisClient.del('bind:' + gameName) // 角色 存的 QQID
+            await redisClient.del('bind:' + qqid + 'charac_no') // QQID+charac_no 存的 角色ID
+            await redisClient.del('bind:' + gameName + 'charac_no') // 角色+charac_no 存的 角色ID
+            await postMessage(`解除绑定成功，角色为：${gameName}`)
           }
           await redisClient.disconnect()
         }
@@ -568,12 +530,7 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
     // ws.connect(testConfigWs, ws.session.sessionRecord)
     redisClient.disconnect()
     console.log('错误', error)
-    await client.groupApi.postMessage(data.msg.group_id, {
-      msg_type: 0,
-      content: `哎呀，出错了，${error.message}`,
-      msg_id: data.msg.id,
-      msg_seq: Math.round(Math.random() * (1 << 30))
-    })
+    await postMessage(`哎呀，出错了，${error.message}`)
   }
   // await client.c2cApi.postMessage(data.msg.author.id, {
   //     content: "测试文本",
