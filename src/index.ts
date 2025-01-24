@@ -373,17 +373,21 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
               if (RD_fuli) {
                 await postMessage(`${RD_gameName} 领取失败，每人只能领取一次福利`)
               } else {
-                await redisClient.set(key, '1')
                 // 福利物品配置
                 const giftItemStr = await redisClient.get('giftItem')
                 const giftItem = JSON.parse(giftItemStr)
-                await postMessage(`${RD_gameName} 福利邮件已发送，无邮件/空邮件重新选择角色或者小退`)
-                const charac_no: string = await redisClient.get('bind:' + qqid + 'charac_no')
-                const letter_id = await selectLetterId()
-                for (const item of giftItem) {
-                  await sendMail('便捷小虞福利', letter_id, +charac_no, item[0], item[1], 1)
+                if (giftItem.length) {
+                  await postMessage(`${RD_gameName} 福利邮件已发送，无邮件/空邮件重新选择角色或者小退`)
+                  const charac_no: string = await redisClient.get('bind:' + qqid + 'charac_no')
+                  const letter_id = await selectLetterId()
+                  for (const item of giftItem) {
+                    await sendMail('便捷小虞福利', letter_id, +charac_no, item[0], item[1], 1)
+                  }
+                  await redisClient.set(key, '1')
+                  console.log(`${RD_gameName} ${charac_no} 邮件发送成功`)
+                } else {
+                  await postMessage(`还未开启福利哦~`)
                 }
-                console.log(`${RD_gameName} ${charac_no} 邮件发送成功`)
               }
             }
             break
@@ -436,7 +440,6 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
           if (RD_sign) {
             await postMessage(`${RD_gameName} 签到失败，今日已签到`)
           } else {
-            await redisClient.set(key, '1')
             // 签到物品配置
             const signItemStr = await redisClient.get('signItem')
             const signItem = JSON.parse(signItemStr)
@@ -447,6 +450,7 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
               for (const item of signItem) {
                 await sendMail('便捷小虞', letter_id, +charac_no, item[0], item[1], 1)
               }
+              await redisClient.set(key, '1')
               console.log(`${RD_gameName} ${charac_no} 邮件发送成功`)
             } else {
               await postMessage(`还未开启签到哦~`)
