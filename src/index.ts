@@ -273,7 +273,7 @@ ws.on(AvailableIntentsEventsEnum.GROUP_AND_C2C_EVENT, async (data) => {
             await postMessage(modelListStr)
             break
           case '战力排行':
-            const result: any = await executeAndFetch('d_starsky', 'select * from zhanli ORDER BY ZLZ desc LIMIT 10')
+            const result: any = await executeAndFetch('d_baoyu', 'select * from zhanli ORDER BY ZLZ desc LIMIT 10')
             function getDisplayLength(str: any) {
               let length = 0
               for (let char of str) {
